@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Cost of Ownership Calculator</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Car Cost of Ownership Calculator</h1>
+    <label for="carSelect">Choose a Car:</label>
+    <select id="carSelect"></select>
+
+    <label>Purchase Price ($):</label>
+    <input type="number" id="purchasePrice">
+
+    <label>Fuel Economy (mpg):</label>
+    <input type="number" id="fuelEconomy">
+
+    <label>Fuel Cost ($/gallon):</label>
+    <input type="number" id="fuelCost" value="3.5">
+
+    <label>Insurance per Year ($):</label>
+    <input type="number" id="insurance">
+
+    <label>Maintenance per Year ($):</label>
+    <input type="number" id="maintenance">
+
+    <label>Annual Mileage:</label>
+    <input type="number" id="mileage" value="12000">
+
+    <button onclick="calculate()">Calculate</button>
+
+    <div id="results"></div>
+    <canvas id="depreciationChart"></canvas>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
