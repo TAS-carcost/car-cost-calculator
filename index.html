@@ -1,41 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Car Cost of Ownership Calculator</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>UK Car Cost of Ownership Calculator</title>
+  <link rel="stylesheet" href="style.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>Car Cost of Ownership Calculator</h1>
-    <label for="carSelect">Choose a Car:</label>
-    <select id="carSelect"></select>
+  <div class="wrap">
+    <header class="header">
+      <h1>Car Cost of Ownership (UK)</h1>
+      <p class="sub">Simple, transparent estimates in £ and UK units.</p>
+    </header>
 
-    <label>Purchase Price ($):</label>
-    <input type="number" id="purchasePrice">
+    <main class="grid">
+      <section class="card" aria-label="Inputs">
+        <h2>Vehicle</h2>
+        <label class="row">
+          <span>Brand</span>
+          <select id="brand" aria-label="Brand"></select>
+        </label>
+        <label class="row">
+          <span>Model</span>
+          <select id="model" aria-label="Model"></select>
+        </label>
 
-    <label>Fuel Economy (mpg):</label>
-    <input type="number" id="fuelEconomy">
+        <h2>Assumptions</h2>
+        <label class="row">
+          <span>Purchase price</span>
+          <input type="number" id="price" min="0" step="100" inputmode="decimal" aria-label="Purchase price"/>
+        </label>
+        <label class="row">
+          <span>Planned ownership (years)</span>
+          <input type="number" id="years" min="1" max="5" value="5" aria-label="Years"/>
+        </label>
+        <label class="row">
+          <span>Annual mileage (miles)</span>
+          <input type="number" id="miles" min="0" step="100" value="10000" aria-label="Annual mileage"/>
+        </label>
 
-    <label>Fuel Cost ($/gallon):</label>
-    <input type="number" id="fuelCost" value="3.5">
+        <div class="grid2">
+          <label class="row">
+            <span>Fuel economy (UK mpg) <button class="hint" data-tip="UK mpg uses 4.546 litres per gallon. Higher mpg = less fuel used.">ℹ️</button></span>
+            <input type="number" id="mpg" min="1" step="0.1" aria-label="Fuel economy UK mpg"/>
+          </label>
+          <label class="row">
+            <span>Fuel price (£/litre)</span>
+            <input type="number" id="fuelPrice" min="0" step="0.01" value="1.50" aria-label="Fuel price per litre"/>
+          </label>
+        </div>
 
-    <label>Insurance per Year ($):</label>
-    <input type="number" id="insurance">
+        <div class="presets" role="group" aria-label="Fuel price presets">
+          <span class="muted small">Quick presets:</span>
+          <button class="pill" data-fuel="1.50">Petrol £1.50</button>
+          <button class="pill" data-fuel="1.55">Diesel £1.55</button>
+        </div>
 
-    <label>Maintenance per Year ($):</label>
-    <input type="number" id="maintenance">
+        <div class="grid2">
+          <label class="row">
+            <span>Insurance / year (£)</span>
+            <input type="number" id="insurance" min="0" step="10" aria-label="Insurance per year"/>
+          </label>
+          <label class="row">
+            <span>Maintenance base / year (£) <button class="hint" data-tip="Starts here and grows ~12% each year as the car ages.">ℹ️</button></span>
+            <input type="number" id="maintBase" min="0" step="10" aria-label="Maintenance per year"/>
+          </label>
+        </div>
 
-    <label>Annual Mileage:</label>
-    <input type="number" id="mileage" value="12000">
+        <label class="row">
+          <span>Inflation (annual, %) <button class="hint" data-tip="We apply this to fuel, insurance and maintenance each year.">ℹ️</button></span>
+          <input type="number" id="inflation" min="0" step="0.1" value="3" aria-label="Inflation percentage"/>
+        </label>
 
-    <button onclick="calculate()">Calculate</button>
+        <h2>Depreciation curve <button class="hint" data-tip="Percent value lost per year. Example: 20, 12, 10, 8, 7.">ℹ️</button></h2>
+        <div id="dep-grid" class="dep-grid"></div>
 
-    <div id="results"></div>
-    <canvas id="depreciationChart"></canvas>
+        <div class="actions">
+          <button id="resetCurve" class="btn" aria-label="Reset depreciation curve">Reset curve</button>
+          <button id="calcBtn" class="btn btn-accent" aria-label="Calculate">Calculate</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Results">
+        <div class="kpi">
+          <div>
+            <div class="muted">5-year TCO</div>
+            <div class="kpi-val" id="kpi-tco">£—</div>
+          </div>
+          <div>
+            <div class="muted">Avg £/mile</div>
+            <div class="kpi-val" id="kpi-cpm">—</div>
+          </div>
+          <div>
+            <div class="muted">Residual value</div>
+            <div class="kpi-val" id="kpi-residual">£—</div>
+          </div>
+          <div>
+            <div class="muted">Total depreciation</div>
+            <div class="kpi-val" id="kpi-dep">£—</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Depreciation (value over time)</h3>
+          <canvas id="depChart" height="260"></canvas>
+        </div>
+
+        <div class="table-wrap">
+          <table id="table">
+            <thead>
+              <tr>
+                <th>Year</th><th>Start £</th><th>Dep £</th><th>End £</th>
+                <th>Fuel £</th><th>Insurance £</th><th>Maint £</th><th>Total £</th><th>£/mile</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td>Totals</td><td>—</td><td id="tDep">£—</td><td>—</td>
+                <td id="tFuel">£—</td><td id="tIns">£—</td><td id="tMaint">£—</td><td id="tTotal">£—</td><td id="tCPM">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <small>© 2025 Treat Automation Solutions · Estimates only — not financial advice.</small>
+    </footer>
   </div>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
   <script src="script.js"></script>
 </body>
 </html>
