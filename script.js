@@ -29,10 +29,9 @@ const insInp = el('insurance');
 const maintBaseInp = el('maintBase');
 const inflInp = el('inflation');
 const depGrid = el('dep-grid');
-const calcBtn = el('calcBtn');
 const tooltip = el('tooltip');
 
-// --- Tooltips ---
+// Tooltips
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('hint')) {
     const tip = e.target.getAttribute('data-tip') || '';
@@ -46,27 +45,30 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// --- Utils ---
+// Utils
 const GBP = n => '£' + Math.round(n).toLocaleString('en-GB');
 const litresPerUKGallon = 4.54609;
+const debounce = (fn, ms=150) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; };
 
 // Build depreciation grid (5 years)
 function buildDepGrid(curve) {
   depGrid.innerHTML = '';
   for (let y = 1; y <= 5; y++) {
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'row';
-    const span = document.createElement('span');
-    span.textContent = `Year ${y} depreciation (%)`;
+    const lab = document.createElement('label');
+    lab.textContent = `Year ${y} depreciation (%)`;
+    lab.setAttribute('for', 'dep'+y);
     const inp = document.createElement('input');
     inp.type = 'number'; inp.min = 0; inp.max = 100; inp.step = 0.1;
     inp.id = 'dep' + y;
     inp.value = curve && curve[y-1] ? (curve[y-1]*100) : (y===1?20:(y===2?12:(y===3?10:(y===4?8:7))));
-    row.appendChild(span); row.appendChild(inp);
+    row.appendChild(lab); row.appendChild(inp);
     depGrid.appendChild(row);
+    inp.addEventListener('input', debouncedCalc);
   }
 }
-el('resetCurve').addEventListener('click', () => buildDepGrid());
+document.getElementById('resetCurve').addEventListener('click', () => buildDepGrid());
 
 function getCurve(nYears) {
   const arr = [];
@@ -107,15 +109,15 @@ function applyDefaults() {
   insInp.value = d.insurance;
   maintBaseInp.value = d.maintenance;
   buildDepGrid(d.dep);
-  calculate();
+  calc();
 }
 
 // Inflation escalator: base * (1+infl)^yearIdx
 const escalate = (base, ratePct, yearIdx) => base * Math.pow(1 + ratePct/100, yearIdx);
 
-// Core calculation
+// Core calculation + charting
 let depChart;
-function calculate() {
+function calc() {
   const price = +priceInp.value || 0;
   const years = Math.max(1, Math.min(5, +yearsInp.value || 5));
   const miles = +milesInp.value || 0;
@@ -126,7 +128,6 @@ function calculate() {
   const infl = +inflInp.value || 0;
 
   const curve = getCurve(years);
-
   const tbody = document.querySelector('#table tbody');
   tbody.innerHTML='';
 
@@ -138,22 +139,19 @@ function calculate() {
     const dep = startVal * (curve[y] || 0);
     const endVal = startVal - dep;
 
-    // Fuel calculation (UK): gallons = miles/mpg; litres = gallons * 4.54609; cost = litres * £/litre
     const annualFuelCost = ((miles / mpg) * litresPerUKGallon) * fuelPrice;
     const fuel = escalate(annualFuelCost, infl, y);
-
     const ins = escalate(insBase, infl, y);
-    const maint = escalate(maintBase * Math.pow(1.12, y), infl, 0); // age effect (12%/yr) then inflation baseline
+    const maint = escalate(maintBase * Math.pow(1.12, y), infl, 0);
 
     const total = dep + fuel + ins + maint;
-
     rows.push({ y:y+1, startVal, dep, endVal, fuel, ins, maint, total, cpm: (miles>0 ? total/miles : 0) });
 
     tFuel += fuel; tIns += ins; tMaint += maint; tDep += dep; tTotal += total;
     startVal = endVal;
   }
 
-  // Fill table
+  // Table
   for (const r of rows) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${r.y}</td><td>${GBP(r.startVal)}</td><td>${GBP(r.dep)}</td><td>${GBP(r.endVal)}</td>
@@ -161,64 +159,70 @@ function calculate() {
     tbody.appendChild(tr);
   }
 
-  // Totals
+  // Totals & KPIs
   document.getElementById('tFuel').textContent = GBP(tFuel);
   document.getElementById('tIns').textContent = GBP(tIns);
   document.getElementById('tMaint').textContent = GBP(tMaint);
   document.getElementById('tDep').textContent = GBP(tDep);
   document.getElementById('tTotal').textContent = GBP(tTotal);
   document.getElementById('tCPM').textContent = (miles>0 ? (tTotal/(miles*rows.length)).toFixed(2) : '—');
-
-  // KPIs
   document.getElementById('kpi-tco').textContent = GBP(tTotal);
   document.getElementById('kpi-cpm').textContent = (miles>0 ? (tTotal/(miles*rows.length)).toFixed(2) : '—');
   document.getElementById('kpi-residual').textContent = GBP(rows.length ? rows[rows.length-1].endVal : price);
   document.getElementById('kpi-dep').textContent = GBP(tDep);
 
-  // Chart
+  // Chart (update without destroy to avoid lag)
   const ctx = document.getElementById('depChart').getContext('2d');
-  if (depChart) depChart.destroy();
-  depChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: rows.map(r => 'Year ' + r.y),
-      datasets: [
-        {
+  const labels = rows.map(r => 'Year ' + r.y);
+  const dataValues = rows.map(r => r.endVal);
+
+  if (!depChart) {
+    depChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
           label: 'Vehicle value (£)',
-          data: rows.map(r => r.endVal),
+          data: dataValues,
           borderColor: '#ffd84d',
           backgroundColor: 'rgba(255,216,77,0.12)',
           fill: false,
-          tension: 0.2
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: '#eaeaea' } }
+          tension: 0.25
+        }]
       },
-      scales: {
-        x: { ticks: { color: '#c7c7c7' }, grid: { color: '#1f1f1f' } },
-        y: { ticks: { color: '#c7c7c7' }, grid: { color: '#1f1f1f' } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        parsing: false,
+        plugins: { legend: { labels: { color: '#eaeaea' } } },
+        scales: {
+          x: { ticks: { color: '#c7c7c7' }, grid: { color: '#1f1f1f' } },
+          y: { ticks: { color: '#c7c7c7' }, grid: { color: '#1f1f1f' } }
+        }
       }
-    }
-  });
+    });
+  } else {
+    depChart.data.labels = labels;
+    depChart.data.datasets[0].data = dataValues;
+    depChart.update('none');
+  }
 }
 
+// Debounced version for input events
+const debouncedCalc = debounce(calc, 150);
+
 // Bind
-document.getElementById('calcBtn').addEventListener('click', calculate);
 ['price','years','miles','mpg','fuelPrice','insurance','maintBase','inflation'].forEach(id => {
-  document.getElementById(id).addEventListener('input', calculate);
+  document.getElementById(id).addEventListener('input', debouncedCalc, {passive:true});
 });
 
 // Fuel presets
-document.querySelectorAll('.pill[data-fuel]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    fuelPriceInp.value = btn.getAttribute('data-fuel');
-    calculate();
-  });
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.pill[data-fuel]');
+  if(!btn) return;
+  fuelPriceInp.value = btn.getAttribute('data-fuel');
+  debouncedCalc();
 });
 
 // Init
@@ -237,6 +241,18 @@ function populateModels(){
   });
   applyDefaults();
 }
+brandSel.addEventListener('change', populateModels);
+modelSel.addEventListener('change', applyDefaults);
+
+function applyDefaults(){
+  const d = carData[brandSel.value][modelSel.value];
+  priceInp.value = d.price;
+  mpgInp.value = d.mpg_uk;
+  insInp.value = d.insurance;
+  maintBaseInp.value = d.maintenance;
+  buildDepGrid(d.dep);
+  calc();
+}
 
 populateBrands();
-calculate();
+calc();
