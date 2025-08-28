@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>UK Car Cost of Ownership Calculator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+  :root{--bg:#0a0a0a;--card:#121212;--muted:#9aa3ae;--text:#f4f6f8;--border:#1f1f1f;--accent:#ffd84d;--accent-2:#ffb300}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  .header{padding:12px 0 8px;border-bottom:1px solid var(--border)}
+  .header h1{margin:0;font-size:24px}
+  .sub{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:420px 1fr;gap:18px;margin-top:16px}
+  @media (max-width:1000px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+  h2{font-size:16px;margin:12px 0 6px}
+  .divider{height:1px;background:var(--border);margin:10px 0}
+  .row{display:grid;grid-template-columns:1fr 240px;align-items:center;gap:12px;margin:10px 0}
+  .row > label{font-weight:600}
+  .row input,.row select{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;border-radius:10px;color:var(--text);padding:12px 12px;font-size:15px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media (max-width:560px){.grid2{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  .dep-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (max-width:560px){.dep-grid{grid-template-columns:1fr}}
+  .btn{appearance:none;border:1px solid #3a3000;background:#1a1500;color:var(--text);padding:12px 14px;border-radius:12px;cursor:pointer;font-weight:600}
+  .btn-accent{background:linear-gradient(180deg,var(--accent),var(--accent-2));border:1px solid #3a3000;color:#161300}
+  .btn-ghost{background:#0e0e0e;border:1px solid #2a2a2a;color:#ddd}
+  .actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:700px){.kpi{grid-template-columns:repeat(2,1fr)}}
+  .kpi .muted{color:var(--muted);font-size:12px}
+  .kpi-val{font-size:20px;font-weight:800}
+  .chart-card{margin-top:10px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#0e0e0e}
+  .chart-wrap{height:300px}
+  .table-wrap{margin-top:10px;overflow:auto;border:1px solid var(--border);border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  tfoot td{font-weight:700}
+  .footer{margin:18px 0 6px;color:var(--muted);text-align:center}
+  .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #3a3000;background:#1a1500;color:var(--text);cursor:pointer}
+  .pill:active{transform:translateY(1px)}
+  .presets{display:flex;align-items:center;gap:8px;margin:6px 0 12px;flex-wrap:wrap}
+  .small{font-size:12px}.muted{color:var(--muted)}
+  .hint{border:1px solid #2a2a2a;background:#0e0e0e;color:#ffd84d;border-radius:50%;width:24px;height:24px;line-height:22px;text-align:center;font-weight:800;cursor:pointer}
+  .tooltip{position:fixed;z-index:9999;max-width:260px;background:#111;border:1px solid #2a2a2a;color:#e6e6e6;border-radius:10px;padding:8px 10px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,0.4)}
+  .linkbtn{background:none;border:none;color:#ffd84d;text-decoration:underline;cursor:pointer;font-size:13px;padding:0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="header">
+      <h1>Car Cost of Ownership (UK)</h1>
+      <p class="sub">Select a brand & model, then adjust the assumptions. All values in £ and UK units.</p>
+    </header>
+
+    <main class="grid">
+      <section class="card" aria-label="Inputs">
+        <h2>Vehicle</h2>
+        <div class="row">
+          <label for="brand">Brand</label>
+          <select id="brand" aria-label="Brand"></select>
+        </div>
+        <div class="row">
+          <label for="model">Model</label>
+          <select id="model" aria-label="Model"></select>
+        </div>
+
+        <div class="divider"></div>
+        <h2>Assumptions</h2>
+        <div class="row">
+          <label for="price">Purchase price</label>
+          <input type="number" id="price" min="0" step="100" placeholder="e.g. 24000"/>
+        </div>
+        <div class="row">
+          <label for="years">Planned ownership (years)</label>
+          <input type="number" id="years" min="1" max="5" value="5"/>
+        </div>
+        <div class="row">
+          <label for="miles">Annual mileage (miles)</label>
+          <input type="number" id="miles" min="0" step="100" value="10000"/>
+        </div>
+
+        <div class="grid2">
+          <div class="row">
+            <label for="mpg">Fuel economy (UK mpg) <button class="hint" data-tip="UK mpg uses 4.546 litres per gallon. Higher mpg = less fuel used.">ℹ️</button></label>
+            <input type="number" id="mpg" min="1" step="0.1" placeholder="e.g. 48"/>
+          </div>
+          <div class="row">
+            <label for="fuelPrice">Fuel price (£/litre)</label>
+            <input type="number" id="fuelPrice" min="0" step="0.01" value="1.50"/>
+          </div>
+        </div>
+
+        <div class="presets" role="group" aria-label="Fuel price presets">
+          <span class="muted small">Quick presets:</span>
+          <button class="pill" data-fuel="1.50">Petrol £1.50</button>
+          <button class="pill" data-fuel="1.55">Diesel £1.55</button>
+          <button id="demoBtn" class="linkbtn" type="button">Load demo example</button>
+        </div>
+
+        <div class="grid2">
+          <div class="row">
+            <label for="insurance">Insurance / year (£)</label>
+            <input type="number" id="insurance" min="0" step="10" placeholder="e.g. 1000"/>
+          </div>
+          <div class="row">
+            <label for="maintBase">Maintenance base / year (£) <button class="hint" data-tip="Starts here and grows ~12% each year as the car ages.">ℹ️</button></label>
+            <input type="number" id="maintBase" min="0" step="10" placeholder="e.g. 500"/>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="inflation">Inflation (annual, %)</label>
+          <input type="number" id="inflation" min="0" step="0.1" value="3"/>
+        </div>
+
+        <div class="divider"></div>
+        <h2>Depreciation curve <button class="hint" data-tip="Percent value lost per year. Example: 20, 12, 10, 8, 7.">ℹ️</button></h2>
+        <div id="dep-grid" class="dep-grid"></div>
+
+        <div class="actions">
+          <button id="resetAll" class="btn btn-ghost" type="button">Reset all</button>
+          <button id="resetCurve" class="btn" type="button">Reset curve</button>
+          <button id="calcBtn" class="btn btn-accent" type="button">Calculate</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Results">
+        <div class="kpi">
+          <div>
+            <div class="muted">5-year TCO</div>
+            <div class="kpi-val" id="kpi-tco">£—</div>
+          </div>
+          <div>
+            <div class="muted">Avg £/mile</div>
+            <div class="kpi-val" id="kpi-cpm">—</div>
+          </div>
+          <div>
+            <div class="muted">Residual value</div>
+            <div class="kpi-val" id="kpi-residual">£—</div>
+          </div>
+          <div>
+            <div class="muted">Total depreciation</div>
+            <div class="kpi-val" id="kpi-dep">£—</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Depreciation (value over time)</h3>
+          <div class="chart-wrap"><canvas id="depChart"></canvas></div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="table">
+            <thead>
+              <tr>
+                <th>Year</th><th>Start £</th><th>Dep £</th><th>End £</th>
+                <th>Fuel £</th><th>Insurance £</th><th>Maint £</th><th>Total £</th><th>£/mile</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td>Totals</td><td>—</td><td id="tDep">£—</td><td>—</td>
+                <td id="tFuel">£—</td><td id="tIns">£—</td><td id="tMaint">£—</td><td id="tTotal">£—</td><td id="tCPM">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <small>© 2025 Treat Automation Solutions · Estimates only — not financial advice.</small>
+    </footer>
+  </div>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const carData = {
+      "Toyota": {"Corolla": { price: 22000, mpg_uk: 50, insurance: 900, maintenance: 450, dep: [0.20,0.12,0.10,0.08,0.07] },
+                 "Yaris":   { price: 19000, mpg_uk: 55, insurance: 850, maintenance: 420, dep: [0.19,0.12,0.10,0.08,0.07] }},
+      "Ford": {"Fiesta":{ price:18500, mpg_uk:52, insurance:880, maintenance:430, dep:[0.21,0.13,0.11,0.09,0.07] },
+               "Focus": { price:24000, mpg_uk:48, insurance:1000, maintenance:500, dep:[0.22,0.13,0.10,0.09,0.07] }},
+      "Volkswagen": {"Golf": { price:26000, mpg_uk:47, insurance:1050, maintenance:520, dep:[0.22,0.12,0.10,0.08,0.07] }},
+      "Tesla": {"Model 3": { price:38000, mpg_uk:120, insurance:1200, maintenance:350, dep:[0.23,0.14,0.11,0.09,0.08] }}
+    };
+
+    const el = id => document.getElementById(id);
+    const brandSel = el('brand'), modelSel = el('model');
+    const priceInp = el('price'), yearsInp = el('years'), milesInp = el('miles');
+    const mpgInp = el('mpg'), fuelPriceInp = el('fuelPrice');
+    const insInp = el('insurance'), maintBaseInp = el('maintBase'), inflInp = el('inflation');
+    const depGrid = el('dep-grid'), tooltip = el('tooltip');
+
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('hint')) {
+        const tip = e.target.getAttribute('data-tip') || '';
+        tooltip.textContent = tip;
+        const rect = e.target.getBoundingClientRect();
+        tooltip.style.left = (rect.left + window.scrollX + 28) + 'px';
+        tooltip.style.top = (rect.top + window.scrollY - 8) + 'px';
+        tooltip.hidden = false;
+      } else {
+        tooltip.hidden = true;
+      }
+    });
+
+    const GBP = n => '£' + Math.round(n).toLocaleString('en-GB');
+    const litresPerUKGallon = 4.54609;
+    const debounce = (fn, ms=150) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); }; };
+
+    function buildDepGrid(curve) {
+      depGrid.innerHTML = '';
+      for (let y = 1; y <= 5; y++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const lab = document.createElement('label'); lab.textContent = `Year ${y} depreciation (%)`; lab.setAttribute('for','dep'+y);
+        const inp = document.createElement('input'); inp.type='number'; inp.min=0; inp.max=100; inp.step=0.1; inp.id='dep'+y;
+        inp.value = curve && curve[y-1] ? (curve[y-1]*100) : (y===1?20:(y===2?12:(y===3?10:(y===4?8:7))));
+        row.appendChild(lab); row.appendChild(inp);
+        depGrid.appendChild(row);
+        inp.addEventListener('input', debouncedCalc);
+      }
+    }
+    el('resetCurve').addEventListener('click', () => buildDepGrid());
+
+    function getCurve(nYears) {
+      const arr = [];
+      for (let i=1;i<=nYears;i++) { const v = parseFloat(el('dep'+i).value || '0'); arr.push(v/100); }
+      return arr;
+    }
+
+    function populateBrands() {
+      brandSel.innerHTML = '';
+      Object.keys(carData).forEach(b => { const opt = document.createElement('option'); opt.value = opt.textContent = b; brandSel.appendChild(opt); });
+      populateModels();
+    }
+    function populateModels() {
+      modelSel.innerHTML = '';
+      const b = brandSel.value;
+      Object.keys(carData[b]).forEach(m => { const opt = document.createElement('option'); opt.value = opt.textContent = m; modelSel.appendChild(opt); });
+      applyDefaults();
+    }
+    brandSel.addEventListener('change', populateModels);
+    modelSel.addEventListener('change', applyDefaults);
+
+    function applyDefaults() {
+      const d = carData[brandSel.value][modelSel.value];
+      priceInp.value = d.price; mpgInp.value = d.mpg_uk; insInp.value = d.insurance; maintBaseInp.value = d.maintenance;
+      buildDepGrid(d.dep); calc();
+    }
+
+    const escalate = (base, ratePct, yearIdx) => base * Math.pow(1 + ratePct/100, yearIdx);
+
+    let depChart;
+    function calc() {
+      const price = +priceInp.value || 0;
+      const years = Math.max(1, Math.min(5, +yearsInp.value || 5));
+      const miles = +milesInp.value || 0;
+      const mpg = +mpgInp.value || 1;
+      const fuelPrice = +fuelPriceInp.value || 0;
+      const insBase = +insInp.value || 0;
+      const maintBase = +maintBaseInp.value || 0;
+      const infl = +inflInp.value || 0;
+
+      const curve = getCurve(years);
+      const tbody = document.querySelector('#table tbody');
+      tbody.innerHTML='';
+
+      let startVal = price;
+      let tFuel=0, tIns=0, tMaint=0, tDep=0, tTotal=0;
+      const rows = [];
+
+      for (let y=0;y<years;y++) {
+        const dep = startVal * (curve[y] || 0);
+        const endVal = startVal - dep;
+        const annualFuelCost = ((miles / mpg) * litresPerUKGallon) * fuelPrice;
+        const fuel = escalate(annualFuelCost, infl, y);
+        const ins = escalate(insBase, infl, y);
+        const maint = escalate(maintBase * Math.pow(1.12, y), infl, 0);
+        const total = dep + fuel + ins + maint;
+        rows.push({ y:y+1, startVal, dep, endVal, fuel, ins, maint, total, cpm: (miles>0 ? total/miles : 0) });
+        tFuel += fuel; tIns += ins; tMaint += maint; tDep += dep; tTotal += total;
+        startVal = endVal;
+      }
+
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.y}</td><td>${GBP(r.startVal)}</td><td>${GBP(r.dep)}</td><td>${GBP(r.endVal)}</td>
+                        <td>${GBP(r.fuel)}</td><td>${GBP(r.ins)}</td><td>${GBP(r.maint)}</td><td>${GBP(r.total)}</td><td>${r.cpm.toFixed(2)}</td>`;
+        tbody.appendChild(tr);
+      }
+
+      el('tFuel').textContent = GBP(tFuel);
+      el('tIns').textContent = GBP(tIns);
+      el('tMaint').textContent = GBP(tMaint);
+      el('tDep').textContent = GBP(tDep);
+      el('tTotal').textContent = GBP(tTotal);
+      el('tCPM').textContent = (miles>0 ? (tTotal/(miles*rows.length)).toFixed(2) : '—');
+      el('kpi-tco').textContent = GBP(tTotal);
+      el('kpi-cpm').textContent = (miles>0 ? (tTotal/(miles*rows.length)).toFixed(2) : '—');
+      el('kpi-residual').textContent = GBP(rows.length ? rows[rows.length-1].endVal : price);
+      el('kpi-dep').textContent = GBP(tDep);
+
+      const ctx = el('depChart').getContext('2d');
+      const labels = rows.map(r => 'Year ' + r.y);
+      const dataValues = rows.map(r => r.endVal);
+
+      if (!window.depChart) {
+        window.depChart = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets: [{ label:'Vehicle value (£)', data:dataValues, borderColor:'#ffd84d', backgroundColor:'rgba(255,216,77,0.12)', fill:false, tension:0.25 }]},
+          options: { responsive:true, maintainAspectRatio:false, animation:false, parsing:false,
+            plugins:{ legend:{ labels:{ color:'#eaeaea' } } },
+            scales:{ x:{ ticks:{ color:'#c7c7c7' }, grid:{ color:'#1f1f1f' } }, y:{ ticks:{ color:'#c7c7c7' }, grid:{ color:'#1f1f1f' } } } }
+        });
+      } else {
+        window.depChart.data.labels = labels;
+        window.depChart.data.datasets[0].data = dataValues;
+        window.depChart.update('none');
+      }
+    }
+
+    const debouncedCalc = debounce(calc, 150);
+    ['price','years','miles','mpg','fuelPrice','insurance','maintBase','inflation'].forEach(id => {
+      el(id).addEventListener('input', debouncedCalc, {passive:true});
+    });
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.pill[data-fuel]');
+      if(!btn) return;
+      el('fuelPrice').value = btn.getAttribute('data-fuel');
+      debouncedCalc();
+    });
+    el('calcBtn').addEventListener('click', calc);
+
+    el('resetAll').addEventListener('click', () => {
+      brandSel.value = 'Toyota'; populateModels(); modelSel.value = 'Corolla'; applyDefaults();
+      yearsInp.value = 5; milesInp.value = 10000; el('fuelPrice').value = 1.50; el('inflation').value = 3; calc();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+
+    el('demoBtn').addEventListener('click', () => {
+      brandSel.value = 'Volkswagen'; populateModels(); modelSel.value = 'Golf'; applyDefaults();
+      yearsInp.value = 5; milesInp.value = 12000; el('fuelPrice').value = 1.55; el('inflation').value = 3.5; calc();
+      document.querySelector('.chart-card').scrollIntoView({behavior:'smooth'});
+    });
+
+    populateBrands();
+    calc();
+  });
+  </script>
+</body>
+</html>
